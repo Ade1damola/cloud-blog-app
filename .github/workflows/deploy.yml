@@ -1,0 +1,248 @@
+# GitHub Actions Workflow
+name: Deploy Cloud Blog
+
+# When to run this workflow
+on:
+  push:
+    branches: [ main ]
+    # Run on every push to main branch
+  
+  pull_request:
+    branches: [ main ]
+    # Run on pull requests to main
+
+# Environment variables available to all jobs
+env:
+  AWS_REGION: us-east-1
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+
+# Jobs to run
+jobs:
+  
+  # Job 1: Test Application
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    # Run on Ubuntu Linux
+    
+    steps:
+      # Step 1: Check out code
+      - name: Checkout code
+        uses: actions/checkout@v4
+        # Download repository code
+      
+      # Step 2: Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      # Step 3: Install dependencies
+      - name: Install dependencies
+        run: |
+          pip install -r backend/requirements.txt
+          pip install -r frontend/requirements.txt
+      
+      # Step 4: Run basic syntax check
+      - name: Check Python syntax
+        run: |
+          python -m py_compile backend/app.py
+          python -m py_compile frontend/app.py
+        # py_compile: Check for syntax errors
+  
+  # Job 2: Security Scanning
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    needs: test
+    # Run after test job completes
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # Scan Terraform code
+      - name: Run tfsec
+        uses: aquasecurity/tfsec-action@v1.0.0
+        with:
+          working_directory: terraform
+          soft_fail: true
+          # soft_fail: Show issues but don't fail build
+      
+      # Scan Docker images
+      - name: Build Docker images
+        run: |
+          docker build -t backend:test backend/
+          docker build -t frontend:test frontend/
+      
+      - name: Run Trivy scan on Backend
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: backend:test
+          format: 'table'
+          exit-code: '0'
+          # Don't fail on vulnerabilities (just report)
+      
+      - name: Run Trivy scan on Frontend
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: frontend:test
+          format: 'table'
+          exit-code: '0'
+  
+  # Job 3: Build and Push Docker Images
+  build:
+    name: Build and Push Images
+    runs-on: ubuntu-latest
+    needs: security-scan
+    # Only run on main branch
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # Log in to Docker Hub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      
+      # Build and push backend image
+      - name: Build and push backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/cloud-blog-backend:latest
+      
+      # Build and push frontend image
+      - name: Build and push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/cloud-blog-frontend:latest
+  
+  # Job 4: Deploy Infrastructure
+  deploy:
+    name: Deploy to AWS
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # Configure AWS credentials
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      # Set up Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+      
+      # Initialize Terraform
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init
+      
+      # Plan infrastructure changes
+      - name: Terraform Plan
+        working-directory: terraform
+        run: |
+          terraform plan \
+            -var="db_password=${{ secrets.DB_PASSWORD }}" \
+            -var="docker_username=${{ secrets.DOCKER_USERNAME }}" \
+            -var="ssh_public_key=${{ secrets.SSH_PUBLIC_KEY }}"
+      
+      # Apply infrastructure changes
+      - name: Terraform Apply
+        working-directory: terraform
+        run: |
+          terraform apply -auto-approve \
+            -var="db_password=${{ secrets.DB_PASSWORD }}" \
+            -var="docker_username=${{ secrets.DOCKER_USERNAME }}" \
+            -var="ssh_public_key=${{ secrets.SSH_PUBLIC_KEY }}"
+      
+      # Get outputs
+      - name: Get Terraform Outputs
+        working-directory: terraform
+        run: |
+          echo "EC2_IP=$(terraform output -raw ec2_private_ip)" >> $GITHUB_ENV
+          echo "DB_ENDPOINT=$(terraform output -raw database_endpoint)" >> $GITHUB_ENV
+          echo "DB_NAME=$(terraform output -raw database_name)" >> $GITHUB_ENV
+      
+      # Deploy application to EC2
+      - name: Deploy Application
+        env:
+          PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          EC2_IP: ${{ env.EC2_IP }}
+          DB_ENDPOINT: ${{ env.DB_ENDPOINT }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: |
+          # Save SSH key
+          echo "$PRIVATE_KEY" > private_key.pem
+          chmod 600 private_key.pem
+          
+          # Create deployment script
+          cat > deploy.sh << 'SCRIPT'
+          #!/bin/bash
+          set -e
+          
+          # Stop existing containers
+          cd /home/ec2-user/app
+          docker-compose down || true
+          
+          # Create docker-compose file
+          cat > docker-compose.yml << 'COMPOSE'
+          version: '3.8'
+          services:
+            backend:
+              image: ${DOCKER_USERNAME}/cloud-blog-backend:latest
+              ports:
+                - "5000:5000"
+              environment:
+                DB_HOST: ${DB_HOST}
+                DB_NAME: ${DB_NAME}
+                DB_USER: postgres
+                DB_PASSWORD: ${DB_PASSWORD}
+              restart: always
+            
+            frontend:
+              image: ${DOCKER_USERNAME}/cloud-blog-frontend:latest
+              ports:
+                - "8080:8080"
+              environment:
+                BACKEND_URL: http://backend:5000
+              depends_on:
+                - backend
+              restart: always
+          COMPOSE
+          
+          # Pull latest images
+          docker-compose pull
+          
+          # Start containers
+          docker-compose up -d
+          SCRIPT
+          
+          # Copy and run deployment script
+          scp -i private_key.pem -o StrictHostKeyChecking=no deploy.sh ec2-user@$EC2_IP:/home/ec2-user/
+          ssh -i private_key.pem -o StrictHostKeyChecking=no ec2-user@$EC2_IP "chmod +x deploy.sh && \
+            DOCKER_USERNAME=$DOCKER_USERNAME \
+            DB_HOST=$(echo $DB_ENDPOINT | cut -d: -f1) \
+            DB_NAME=$DB_NAME \
+            DB_PASSWORD=$DB_PASSWORD \
+            ./deploy.sh"
+          
+          # Clean up
+          rm private_key.pem

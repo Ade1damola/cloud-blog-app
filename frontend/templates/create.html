@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Post - Cloud Blog</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Create New Post</h1>
+        
+        <form method="POST">
+            <!-- Form submits to same URL using POST method -->
+            
+            <div class="form-group">
+                <label>Title:</label>
+                <input type="text" name="title" required>
+                <!-- Text input for title, required=must be filled -->
+            </div>
+            
+            <div class="form-group">
+                <label>Author:</label>
+                <input type="text" name="author" required>
+            </div>
+            
+            <div class="form-group">
+                <label>Content:</label>
+                <textarea name="content" rows="10" required></textarea>
+                <!-- Multi-line text input -->
+            </div>
+            
+            <button type="submit" class="btn">Create Post</button>
+            <a href="/" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</body>
+</html>

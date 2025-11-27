@@ -1,0 +1,129 @@
+/* Reset default browser styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Body styling */
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f4;
+    color: #333;
+    line-height: 1.6;
+}
+
+/* Container for content */
+.container {
+    max-width: 800px;
+    /* Maximum width of 800 pixels */
+    
+    margin: 50px auto;
+    /* 50px top/bottom margin, auto centers horizontally */
+    
+    padding: 20px;
+    background-color: white;
+    border-radius: 8px;
+    /* Rounded corners */
+    
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    /* Subtle shadow for depth */
+}
+
+/* Main heading */
+h1 {
+    color: #2c3e50;
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+/* Button styling */
+.btn {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: #3498db;
+    color: white;
+    text-decoration: none;
+    /* Remove underline */
+    
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    /* Shows hand cursor on hover */
+    
+    margin: 5px;
+}
+
+.btn:hover {
+    background-color: #2980b9;
+    /* Darker blue on hover */
+}
+
+.btn-small {
+    padding: 5px 10px;
+    font-size: 14px;
+}
+
+.btn-secondary {
+    background-color: #95a5a6;
+}
+
+.btn-danger {
+    background-color: #e74c3c;
+}
+
+/* Posts container */
+.posts {
+    margin-top: 30px;
+}
+
+/* Individual post styling */
+.post {
+    border: 1px solid #ddd;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+    background-color: #fafafa;
+}
+
+.post h2 {
+    color: #2c3e50;
+    margin-bottom: 10px;
+}
+
+.author {
+    color: #7f8c8d;
+    font-size: 14px;
+    margin-bottom: 15px;
+}
+
+.actions {
+    margin-top: 15px;
+}
+
+/* Form styling */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    /* Full width */
+    
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+}
+
+.form-group textarea {
+    resize: vertical;
+    /* Allow vertical resizing only */
+}

@@ -1,0 +1,33 @@
+# Python
+pycache/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Terraform
+*/.terraform/
+*.tfstate
+.tfstate.
+*.tfvars
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+*.pem
+.key
+private_key
+
+# Docker
+*.log

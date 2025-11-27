@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<!-- This declares it's an HTML5 document -->
+
+<html lang="en">
+<!-- Root element, lang="en" means English -->
+
+<head>
+    <!-- Head contains metadata and links -->
+    <meta charset="UTF-8">
+    <!-- Character encoding for proper text display -->
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Makes site responsive on mobile devices -->
+    
+    <title>Cloud Blog</title>
+    <!-- Title shown in browser tab -->
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Link to CSS file for styling -->
+</head>
+
+<body>
+    <!-- Body contains visible content -->
+    
+    <div class="container">
+        <!-- Container div for layout -->
+        
+        <h1>Cloud Blog</h1>
+        <!-- Main heading -->
+        
+        <a href="/create" class="btn">Create New Post</a>
+        <!-- Link to create post page, styled as button -->
+        
+        <div class="posts">
+            <!-- Container for blog posts -->
+            
+            {% if posts %}
+            <!-- Jinja2 template: If posts exist -->
+            
+                {% for post in posts %}
+                <!-- Loop through each post -->
+                
+                <div class="post">
+                    <!-- Individual post container -->
+                    
+                    <h2>{{ post.title }}</h2>
+                    <!-- Display post title -->
+                    
+                    <p class="author">By {{ post.author }} on {{ post.created_at }}</p>
+                    <!-- Display author and date -->
+                    
+                    <p>{{ post.content }}</p>
+                    <!-- Display post content -->
+                    
+                    <div class="actions">
+                        <!-- Container for action buttons -->
+                        
+                        <a href="/edit/{{ post.id }}" class="btn btn-small">Edit</a>
+                        <!-- Edit button -->
+                        
+                        <a href="/delete/{{ post.id }}" class="btn btn-small btn-danger" 
+                           onclick="return confirm('Delete this post?')">Delete</a>
+                        <!-- Delete button with confirmation dialog -->
+                    </div>
+                </div>
+                {% endfor %}
+                
+            {% else %}
+            <!-- If no posts exist -->
+            
+                <p>No posts yet. Create one!</p>
+                
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>
