@@ -332,7 +332,7 @@ resource "aws_key_pair" "deployer" {
     public_key = var.ssh_public_key
 }
 
-    # Create EC2 Instance
+# Create EC2 Instance
 resource "aws_instance" "app" {
     ami = data.aws_ami.amazon_linux_2023.id
     instance_type = "t2.micro"
@@ -342,6 +342,9 @@ resource "aws_instance" "app" {
     key_name                    = aws_key_pair.deployer.key_name
     associate_public_ip_address = false
     # No public IP (in private subnet)
+
+    iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
+    
     # User data script (runs on first boot)
     user_data = <<-EOF
         #!/bin/bash
@@ -366,6 +369,40 @@ resource "aws_instance" "app" {
     tags = {
         Name = "${var.project_name}-instance"
     }
+}
+
+# Create IAM role for EC2 to use SSM
+resource "aws_iam_role" "ec2_ssm_role" {
+  name = "${var.project_name}-ec2-ssm-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.project_name}-ec2-ssm-role"
+  }
+}
+
+# Attach SSM policy to role
+resource "aws_iam_role_policy_attachment" "ec2_ssm_policy" {
+  role       = aws_iam_role.ec2_ssm_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+# Create instance profile
+resource "aws_iam_instance_profile" "ec2_profile" {
+  name = "${var.project_name}-ec2-profile"
+  role = aws_iam_role.ec2_ssm_role.name
 }
 
 # ====================

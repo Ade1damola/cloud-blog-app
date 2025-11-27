@@ -181,44 +181,36 @@ jobs:
           echo "DB_ENDPOINT=$(terraform output -raw database_endpoint)" >> $GITHUB_ENV
           echo "DB_NAME=$(terraform output -raw database_name)" >> $GITHUB_ENV
       
-      # Deploy application to EC2
+# Deploy application to EC2
       - name: Deploy Application
         env:
-          PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          EC2_IP: ${{ env.EC2_IP }}
           DB_ENDPOINT: ${{ env.DB_ENDPOINT }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         run: |
-          # Save SSH key
-          echo "$PRIVATE_KEY" > private_key.pem
-          chmod 600 private_key.pem
+          # Get EC2 instance ID
+          INSTANCE_ID=$(cd terraform && terraform output -raw ec2_instance_id)
           
-          # Create deployment script
-          cat > deploy.sh << 'SCRIPT'
-          #!/bin/bash
-          set -e
+          # Extract database host from endpoint
+          DB_HOST=$(echo $DB_ENDPOINT | cut -d: -f1)
           
-          # Stop existing containers
-          cd /home/ec2-user/app
-          docker-compose down || true
-          
-          # Create docker-compose file
-          cat > docker-compose.yml << 'COMPOSE'
+          # Create docker-compose content
+          COMPOSE_CONTENT=$(cat << 'EOF'
           version: '3.8'
           services:
             backend:
-              image: ${DOCKER_USERNAME}/cloud-blog-backend:latest
+              image: DOCKER_USERNAME_PLACEHOLDER/cloud-blog-backend:latest
               ports:
                 - "5000:5000"
               environment:
-                DB_HOST: ${DB_HOST}
-                DB_NAME: ${DB_NAME}
+                DB_HOST: DB_HOST_PLACEHOLDER
+                DB_NAME: blogdb
                 DB_USER: postgres
-                DB_PASSWORD: ${DB_PASSWORD}
+                DB_PASSWORD: DB_PASSWORD_PLACEHOLDER
               restart: always
             
             frontend:
-              image: ${DOCKER_USERNAME}/cloud-blog-frontend:latest
+              image: DOCKER_USERNAME_PLACEHOLDER/cloud-blog-frontend:latest
               ports:
                 - "8080:8080"
               environment:
@@ -226,23 +218,90 @@ jobs:
               depends_on:
                 - backend
               restart: always
-          COMPOSE
+          EOF
+          )
+          
+          # Replace placeholders
+          COMPOSE_CONTENT="${COMPOSE_CONTENT//DOCKER_USERNAME_PLACEHOLDER/$DOCKER_USERNAME}"
+          COMPOSE_CONTENT="${COMPOSE_CONTENT//DB_HOST_PLACEHOLDER/$DB_HOST}"
+          COMPOSE_CONTENT="${COMPOSE_CONTENT//DB_PASSWORD_PLACEHOLDER/$DB_PASSWORD}"
+          
+          # Create deployment script
+          DEPLOY_SCRIPT=$(cat << 'SCRIPT'
+          #!/bin/bash
+          set -e
+          
+          # Navigate to app directory
+          cd /home/ec2-user/app
+          
+          # Stop existing containers
+          if [ -f docker-compose.yml ]; then
+            docker-compose down || true
+          fi
+          
+          # Write new docker-compose file
+          cat > docker-compose.yml << 'COMPOSEEOF'
+          COMPOSE_CONTENT_PLACEHOLDER
+          COMPOSEEOF
           
           # Pull latest images
           docker-compose pull
           
           # Start containers
           docker-compose up -d
+          
+          # Show status
+          docker-compose ps
           SCRIPT
+          )
           
-          # Copy and run deployment script
-          scp -i private_key.pem -o StrictHostKeyChecking=no deploy.sh ec2-user@$EC2_IP:/home/ec2-user/
-          ssh -i private_key.pem -o StrictHostKeyChecking=no ec2-user@$EC2_IP "chmod +x deploy.sh && \
-            DOCKER_USERNAME=$DOCKER_USERNAME \
-            DB_HOST=$(echo $DB_ENDPOINT | cut -d: -f1) \
-            DB_NAME=$DB_NAME \
-            DB_PASSWORD=$DB_PASSWORD \
-            ./deploy.sh"
+          # Replace compose content in script
+          DEPLOY_SCRIPT="${DEPLOY_SCRIPT//COMPOSE_CONTENT_PLACEHOLDER/$COMPOSE_CONTENT}"
           
-          # Clean up
-          rm private_key.pem
+          # Save script to file
+          echo "$DEPLOY_SCRIPT" > deploy_script.sh
+          
+          # Send script to EC2 using SSM
+          aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters commands="$(cat deploy_script.sh)" \
+            --output text \
+            --query "Command.CommandId" > command_id.txt
+          
+          COMMAND_ID=$(cat command_id.txt)
+          echo "Command ID: $COMMAND_ID"
+          
+          # Wait for command to complete
+          for i in {1..30}; do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$INSTANCE_ID" \
+              --query "Status" \
+              --output text)
+            
+            echo "Status: $STATUS"
+            
+            if [ "$STATUS" = "Success" ]; then
+              echo "Deployment successful!"
+              aws ssm get-command-invocation \
+                --command-id "$COMMAND_ID" \
+                --instance-id "$INSTANCE_ID" \
+                --query "StandardOutputContent" \
+                --output text
+              exit 0
+            elif [ "$STATUS" = "Failed" ]; then
+              echo "Deployment failed!"
+              aws ssm get-command-invocation \
+                --command-id "$COMMAND_ID" \
+                --instance-id "$INSTANCE_ID" \
+                --query "StandardErrorContent" \
+                --output text
+              exit 1
+            fi
+            
+            sleep 10
+          done
+          
+          echo "Deployment timeout"
+          exit 1

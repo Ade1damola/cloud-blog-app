@@ -2,11 +2,55 @@
 
 A production-grade, two-tier blog application deployed on AWS with complete CI/CD automation and security scanning.
 
-## Architecture
+## 🏫 Architecture
 
-![Architecture Diagram](architecture-diagram.png)
+### 🎨 Architecture Diagram
+## Architecture Diagram
+```
+┌─────────────────────────────────────────────────────────┐
+│                        Internet                          │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+                       ↓
+┌─────────────────────────────────────────────────────────┐
+│                    VPC (10.0.0.0/16)                     │
+│                                                           │
+│  ┌────────────────────────────────────────────────────┐ │
+│  │         Public Subnets (10.0.1.0/24)              │ │
+│  │                                                     │ │
+│  │    ┌──────────────────────────────────┐           │ │
+│  │    │  Application Load Balancer       │           │ │
+│  │    │  (Port 80)                       │           │ │
+│  │    └────────────┬─────────────────────┘           │ │
+│  └─────────────────┼───────────────────────────────────┘ │
+│                    │                                   │
+│  ┌─────────────────┼───────────────────────────────────┐ │
+│  │         Private Subnets (10.0.10.0/24)            │ │
+│  │                 ↓                                  │ │
+│  │    ┌──────────────────────────────────┐           │ │
+│  │    │      EC2 Instance (t2.micro)     │           │ │
+│  │    │                                   │           │ │
+│  │    │  ┌─────────────────────────────┐ │           │ │
+│  │    │  │ Frontend (Port 8080)        │ │           │ │
+│  │    │  └─────────────────────────────┘ │           │ │
+│  │    │  ┌─────────────────────────────┐ │           │ │
+│  │    │  │ Backend (Port 5000)         │ │           │ │
+│  │    │  └──────────┬──────────────────┘ │           │ │
+│  │    └─────────────┼─────────────────────┘           │ │
+│  └──────────────────┼───────────────────────────────────┘ │
+│                     │                                   │
+│  ┌──────────────────┼───────────────────────────────────┐ │
+│  │         Private Subnets (10.0.11.0/24)            │ │
+│  │                  ↓                                 │ │
+│  │    ┌──────────────────────────────────┐           │ │
+│  │    │  RDS PostgreSQL (db.t3.micro)    │           │ │
+│  │    │  (Port 5432)                     │           │ │
+│  │    └──────────────────────────────────┘           │ │
+│  └─────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────┘
+```
 
-### Architecture Overview
+### 📓 Architecture Overview
 
 - **Frontend Tier**: Flask web application serving HTML/CSS interface
 - **Backend Tier**: REST API handling business logic
@@ -15,7 +59,7 @@ A production-grade, two-tier blog application deployed on AWS with complete CI/C
 - **Network**: Custom VPC with public and private subnets
 - **Deployment**: Fully automated CI/CD pipeline with security scanning
 
-### Network Architecture
+### 🎯 Network Architecture
 ```
 Internet
    │
@@ -31,10 +75,10 @@ EC2 Instance (Private Subnet)
 RDS PostgreSQL (Private Subnet)
 ```
 
-## Live Application
-URL: [Live URL](http://YOUR-ALB-URL-HERE.elb.amazonaws.com)
+## 🍎 Live Application
+URL: [Live URL](http://cloud-blog-alb-1490947172.us-east-1.elb.amazonaws.com/)
 
-## Features
+## 📌 Features
 - Create, read, update, and delete blog posts
 - Responsive web interface
 - Secure database storage
@@ -42,7 +86,7 @@ URL: [Live URL](http://YOUR-ALB-URL-HERE.elb.amazonaws.com)
 - Security scanning (Terraform & Docker images)
 - High availability with load balancing
 
-## Technology Stack
+## 💻 Technology Stack
 - **Frontend**: Python Flask, HTML, CSS
 - **Backend**: Python Flask, REST API
 - **Database**: PostgreSQL 15 (AWS RDS)
@@ -51,13 +95,13 @@ URL: [Live URL](http://YOUR-ALB-URL-HERE.elb.amazonaws.com)
 - **CI/CD**: GitHub Actions
 - **Security**: tfsec, Trivy
 
-## Prerequisites
+## 🍁 Prerequisites
 - Docker Desktop
 - AWS Account
 - Docker Hub Account
 - GitHub Account
 
-## Running Locally
+## 🏃🏽‍♀️ Running Locally
 
 1. Clone the repository:
 ```bash
@@ -79,26 +123,26 @@ Backend API: [http://localhost:5000](http://localhost:5000)
     docker-compose down
 ```
 
-## Security Considerations
+## 🔒 Security Considerations
 
-### Network Security
+### 🕸 Network Security
 - **Private Subnets**: Application and database are isolated in private subnets with no direct internet access
 - **NAT Gateway**: Enables private resources to access internet for updates without exposing them
 - **Public Subnet**: Only the load balancer is internet-facing
 
-### Security Groups (Firewall Rules)
+### 🧱 Security Groups (Firewall Rules)
 - **ALB Security Group**: Accepts HTTP (port 80) from anywhere, forwards to EC2
 - **EC2 Security Group**: Only accepts traffic from ALB on port 8080, SSH from anywhere for deployment
 - **RDS Security Group**: Only accepts PostgreSQL (port 5432) connections from EC2 instance
 
-### Application Security
+### ✒ Application Security
 - Environment variables for sensitive data (no hardcoded credentials)
 - Database password managed through GitHub Secrets
 - Automated security scanning in CI/CD pipeline:
   - **tfsec**: Scans Terraform code for misconfigurations
   - **Trivy**: Scans Docker images for vulnerabilities
 
-### Data Protection
+### 🚫 Data Protection
 - RDS encryption at rest
 - Terraform state stored encrypted in S3
 - Private subnets prevent direct database access
@@ -114,7 +158,7 @@ cloud-blog-app/
 └── README.md             # This file
 ```
 
-## CI/CD Pipeline
+## 📨 CI/CD Pipeline
 The pipeline runs automatically on every push to main:
 - **Test**: Runs syntax checks on Python code
 - **Security Scan**:
@@ -125,7 +169,7 @@ The pipeline runs automatically on every push to main:
     - Provisions/updates AWS infrastructure with Terraform
     - Deploys containers to EC2 instance
 
-## Testing
+## 🧪 Testing
 ```bash
 # Run Python syntax checks
 python -m py_compile backend/app.py
@@ -136,7 +180,7 @@ docker build -t backend:test backend/
 docker build -t frontend:test frontend/
 ```
 
-## Infrastructure Details
+## 🏢 Infrastructure Details
 - **VPC CIDR**: 10.0.0.0/16
 - **Public Subnets**: 10.0.1.0/24, 10.0.2.0/24
 - **Private Subnets**: 10.0.10.0/24, 10.0.11.0/24
@@ -144,12 +188,12 @@ docker build -t frontend:test frontend/
 - **RDS Instance**: db.t3.micro PostgreSQL 15.4
 - **Region**: us-east-1
 
-## Monitoring
+## 🛹 Monitoring
 - ALB Health Checks every 30 seconds
 - Target considered healthy after 2 successful checks
 - Target considered unhealthy after 2 failed checks
 
-## Cleanup
+## 🧹 Cleanup
 To destroy all AWS resources:
 ```bash
 cd terraform
@@ -158,7 +202,7 @@ terraform destroy \
 
 **Warning**: This will permanently delete all data.
 
-## Reflection
+## 💡 Reflection
 
 ### What inspired this project?
 This project was created as part of the AWAKE 7.0 Cloud Engineering Bootcamp capstone to demonstrate mastery of cloud-native application development, infrastructure as code, and DevOps best practices.
@@ -178,5 +222,4 @@ This project is part of the AWAKE 7.0 Bootcamp capstone project.
 
 ## 👤 Author
 
-**Your Name**
 - GitHub: [ade1damola](https://github.com/ade1damola)

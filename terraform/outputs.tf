@@ -25,3 +25,8 @@ output "database_name" {
   description = "Database name"
   value       = aws_db_instance.main.db_name
 }
+
+output "ec2_instance_id" {
+  description = "EC2 Instance ID"
+  value       = aws_instance.app.id
+}
