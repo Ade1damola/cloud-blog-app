@@ -183,33 +183,121 @@ jobs:
       
 # Deploy application to EC2
       - name: Deploy Application
-        env:
-          DB_ENDPOINT: ${{ env.DB_ENDPOINT }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         run: |
-          # Get EC2 instance ID
+          # Get instance ID
           INSTANCE_ID=$(cd terraform && terraform output -raw ec2_instance_id)
+          echo "Instance ID: $INSTANCE_ID"
+          
+          # Get database endpoint and extract host
+          DB_ENDPOINT=$(cd terraform && terraform output -raw database_endpoint)
           DB_HOST=$(echo $DB_ENDPOINT | cut -d: -f1)
+          echo "DB Host: $DB_HOST"
           
-          # Read deploy script
-          DEPLOY_SCRIPT=$(cat scripts/deploy.sh)
+          # Set variables
+          DOCKER_USER="${{ secrets.DOCKER_USERNAME }}"
+          DB_PASS="${{ secrets.DB_PASSWORD }}"
           
-          # Execute via SSM with environment variables
+          # Create deployment commands as a simple array
           aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
-            --parameters commands="export DOCKER_USERNAME=$DOCKER_USERNAME && export DB_HOST=$DB_HOST && export DB_PASSWORD='$DB_PASSWORD' && $DEPLOY_SCRIPT" \
-            --output json > command_result.json
+            --comment "Deploy Cloud Blog App" \
+            --output-s3-bucket-name "cloud-blog-terraform-state-$(echo ${{ secrets.DOCKER_USERNAME }} | tr '[:upper:]' '[:lower:]')" \
+            --output-s3-key-prefix "ssm-logs" \
+            --parameters '{
+              "commands": [
+                "set -e",
+                "echo \"Starting deployment at $(date)\"",
+                "cd /home/ec2-user/app",
+                "sudo -u ec2-user docker-compose down 2>/dev/null || true",
+                "sudo -u ec2-user tee docker-compose.yml > /dev/null <<EOF",
+                "version: \"3.8\"",
+                "services:",
+                "  backend:",
+                "    image: '"$DOCKER_USER"'/cloud-blog-backend:latest",
+                "    ports:",
+                "      - \"5000:5000\"",
+                "    environment:",
+                "      DB_HOST: '"$DB_HOST"'",
+                "      DB_NAME: blogdb",
+                "      DB_USER: postgres",
+                "      DB_PASSWORD: '"$DB_PASS"'",
+                "    restart: always",
+                "  frontend:",
+                "    image: '"$DOCKER_USER"'/cloud-blog-frontend:latest",
+                "    ports:",
+                "      - \"8080:8080\"",
+                "    environment:",
+                "      BACKEND_URL: http://backend:5000",
+                "    depends_on:",
+                "      - backend",
+                "    restart: always",
+                "EOF",
+                "sudo -u ec2-user docker-compose pull",
+                "sudo -u ec2-user docker-compose up -d",
+                "sleep 10",
+                "echo \"Container status:\"",
+                "sudo -u ec2-user docker-compose ps",
+                "echo \"Recent logs:\"",
+                "sudo -u ec2-user docker-compose logs --tail=30",
+                "echo \"Deployment completed at $(date)\""
+              ],
+              "executionTimeout": ["600"]
+            }' > command_result.json
           
+          # Get command ID
           COMMAND_ID=$(cat command_result.json | jq -r '.Command.CommandId')
           echo "Command ID: $COMMAND_ID"
+          echo ""
           
-          # Wait for completion
-          sleep 30
+          # Wait for command to complete
+          echo "Waiting for deployment to complete..."
+          for i in {1..60}; do
+            sleep 5
+            
+            STATUS=$(aws ssm list-command-invocations \
+              --command-id "$COMMAND_ID" \
+              --details \
+              --query "CommandInvocations[0].Status" \
+              --output text 2>/dev/null || echo "Pending")
+            
+            if [ $((i % 6)) -eq 0 ]; then
+              echo "[$i/60] Status: $STATUS"
+            fi
+            
+            if [ "$STATUS" = "Success" ]; then
+              echo ""
+              echo "✅ Deployment successful!"
+              echo ""
+              echo "=== Deployment Output ==="
+              aws ssm get-command-invocation \
+                --command-id "$COMMAND_ID" \
+                --instance-id "$INSTANCE_ID" \
+                --query "StandardOutputContent" \
+                --output text
+              exit 0
+              
+            elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ] || [ "$STATUS" = "TimedOut" ]; then
+              echo ""
+              echo "❌ Deployment failed!"
+              echo ""
+              echo "=== Standard Output ==="
+              aws ssm get-command-invocation \
+                --command-id "$COMMAND_ID" \
+                --instance-id "$INSTANCE_ID" \
+                --query "StandardOutputContent" \
+                --output text || echo "No output"
+              echo ""
+              echo "=== Error Output ==="
+              aws ssm get-command-invocation \
+                --command-id "$COMMAND_ID" \
+                --instance-id "$INSTANCE_ID" \
+                --query "StandardErrorContent" \
+                --output text || echo "No errors"
+              exit 1
+            fi
+          done
           
-          aws ssm get-command-invocation \
-            --command-id "$COMMAND_ID" \
-            --instance-id "$INSTANCE_ID" \
-            --query "StandardOutputContent" \
-            --output text
+          echo ""
+          echo "⏱️ Timeout waiting for deployment"
+          exit 1
