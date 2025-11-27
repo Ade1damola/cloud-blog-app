@@ -2,10 +2,8 @@
 
 A production-grade, two-tier blog application deployed on AWS with complete CI/CD automation and security scanning.
 
-## 🏫 Architecture
 
-### 🎨 Architecture Diagram
-## Architecture Diagram
+## 🎨 Architecture Diagram
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                        Internet                          │
@@ -50,7 +48,7 @@ A production-grade, two-tier blog application deployed on AWS with complete CI/C
 └─────────────────────────────────────────────────────────┘
 ```
 
-### 📓 Architecture Overview
+## 📓 Architecture Overview
 
 - **Frontend Tier**: Flask web application serving HTML/CSS interface
 - **Backend Tier**: REST API handling business logic
@@ -59,7 +57,7 @@ A production-grade, two-tier blog application deployed on AWS with complete CI/C
 - **Network**: Custom VPC with public and private subnets
 - **Deployment**: Fully automated CI/CD pipeline with security scanning
 
-### 🎯 Network Architecture
+## 🎯 Network Architecture
 ```
 Internet
    │
@@ -76,7 +74,7 @@ RDS PostgreSQL (Private Subnet)
 ```
 
 ## 🍎 Live Application
-URL: [Live URL](http://cloud-blog-alb-1490947172.us-east-1.elb.amazonaws.com/)
+[Live URL](http://cloud-blog-alb-1490947172.us-east-1.elb.amazonaws.com/)
 
 ## 📌 Features
 - Create, read, update, and delete blog posts
@@ -115,34 +113,33 @@ URL: [Live URL](http://cloud-blog-alb-1490947172.us-east-1.elb.amazonaws.com/)
 ```
 
 3. Access the application:
-Open browser to [http://localhost:8080](http://localhost:8080)
-Backend API: [http://localhost:5000](http://localhost:5000)
+- Open browser to [http://localhost:8080](http://localhost:8080)
+- Backend API: [http://localhost:5000](http://localhost:5000)
 
 4. Stop the application
 ```bash
     docker-compose down
 ```
 
-## 🔒 Security Considerations
 
-### 🕸 Network Security
+## 🕸 Network Security
 - **Private Subnets**: Application and database are isolated in private subnets with no direct internet access
 - **NAT Gateway**: Enables private resources to access internet for updates without exposing them
 - **Public Subnet**: Only the load balancer is internet-facing
 
-### 🧱 Security Groups (Firewall Rules)
+## 🧱 Security Groups (Firewall Rules)
 - **ALB Security Group**: Accepts HTTP (port 80) from anywhere, forwards to EC2
 - **EC2 Security Group**: Only accepts traffic from ALB on port 8080, SSH from anywhere for deployment
 - **RDS Security Group**: Only accepts PostgreSQL (port 5432) connections from EC2 instance
 
-### ✒ Application Security
+## ✒ Application Security
 - Environment variables for sensitive data (no hardcoded credentials)
 - Database password managed through GitHub Secrets
 - Automated security scanning in CI/CD pipeline:
   - **tfsec**: Scans Terraform code for misconfigurations
   - **Trivy**: Scans Docker images for vulnerabilities
 
-### 🚫 Data Protection
+## 🚫 Data Protection
 - RDS encryption at rest
 - Terraform state stored encrypted in S3
 - Private subnets prevent direct database access
@@ -169,16 +166,6 @@ The pipeline runs automatically on every push to main:
     - Provisions/updates AWS infrastructure with Terraform
     - Deploys containers to EC2 instance
 
-## 🧪 Testing
-```bash
-# Run Python syntax checks
-python -m py_compile backend/app.py
-python -m py_compile frontend/app.py
-
-# Test Docker builds
-docker build -t backend:test backend/
-docker build -t frontend:test frontend/
-```
 
 ## 🏢 Infrastructure Details
 - **VPC CIDR**: 10.0.0.0/16
